@@ -27,7 +27,15 @@ class CascadeEngine:
 
     def load_scenario(self, path: str | Path) -> Scenario:
         """Load a scenario from a JSON file."""
-        scenario = Scenario.load(path)
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Scenario file not found: {path}")
+        try:
+            scenario = Scenario.load(path)
+        except Exception as e:
+            raise ValueError(f"Failed to parse scenario {path.name}: {e}") from e
+        if scenario.chain.size == 0:
+            raise ValueError(f"Scenario {path.name} has no nodes")
         self._scenarios[scenario.name] = scenario
         self._active_chain = scenario.chain
         return scenario
@@ -122,8 +130,9 @@ class CascadeEngine:
             return None
 
         has_personal_child = self._has_personal_descendant(node)
+        has_same_sector_child = self._has_same_sector_descendant(node, mapping[0])
 
-        if not is_personal and has_personal_child:
+        if not is_personal and (has_personal_child or has_same_sector_child):
             return PersonalImpact(
                 node_id=node.id,
                 event=node.event,
@@ -159,17 +168,47 @@ class CascadeEngine:
                 return True
         return False
 
+    def _has_same_sector_descendant(self, node: CascadeNode, budget_key: str) -> bool:
+        """Check if any child maps to the same budget category, avoiding double-count."""
+        chain = self._active_chain
+        if not chain:
+            return False
+
+        sector_to_budget = {
+            Sector.ENERGY: "monthly_energy_bill",
+            Sector.TRANSPORT: "monthly_fuel_spend",
+            Sector.FOOD: "monthly_groceries",
+            Sector.HOUSING: "monthly_rent",
+        }
+
+        for child_id in node.children:
+            child = chain.nodes.get(child_id)
+            if child and sector_to_budget.get(child.sector) == budget_key:
+                return True
+        return False
+
     def summary(self, profile: dict | None = None) -> CascadeSummary:
         """Generate a full summary of the active cascade's personal impact."""
         chain = self._active_chain
         if not chain:
             return CascadeSummary.empty()
 
+        profile = profile or {}
+        for key in ("monthly_fuel_spend", "monthly_energy_bill", "monthly_groceries", "monthly_rent", "monthly_income", "savings"):
+            val = profile.get(key, 0)
+            if not isinstance(val, (int, float)):
+                try:
+                    profile[key] = float(val)
+                except (TypeError, ValueError):
+                    profile[key] = 0
+            if profile.get(key, 0) < 0:
+                profile[key] = 0
+
         impacts = self.compute_personal_impact(profile=profile)
         total_monthly = sum(i.monthly_cost_change for i in impacts)
         total_annual = total_monthly * 12
 
-        savings = (profile or {}).get("savings", 0)
+        savings = profile.get("savings", 0)
         months_until_depleted = (
             round(savings / total_monthly, 1) if total_monthly > 0 and savings > 0 else None
         )

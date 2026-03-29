@@ -60,9 +60,10 @@ def list_scenarios():
 @app.get("/api/scenarios/{scenario_id}")
 def get_scenario(scenario_id: str):
     """Get full cascade chain for a scenario."""
-    path = SCENARIOS_DIR / f"{scenario_id}.json"
+    safe_id = scenario_id.replace("..", "").replace("/", "").replace("\\", "")
+    path = SCENARIOS_DIR / f"{safe_id}.json"
     if not path.exists():
-        return {"error": "Scenario not found"}
+        return {"error": f"Scenario '{safe_id}' not found", "available": [f.stem for f in SCENARIOS_DIR.glob("*.json")]}
 
     eng = CascadeEngine()
     scenario = eng.load_scenario(path)
@@ -98,12 +99,16 @@ def get_scenario(scenario_id: str):
 @app.post("/api/simulate")
 def simulate(req: SimulateRequest):
     """Run cascade simulation with personal profile."""
-    path = SCENARIOS_DIR / f"{req.scenario}.json"
+    safe_id = req.scenario.replace("..", "").replace("/", "").replace("\\", "")
+    path = SCENARIOS_DIR / f"{safe_id}.json"
     if not path.exists():
-        return {"error": "Scenario not found"}
+        return {"error": f"Scenario '{safe_id}' not found"}
 
-    eng = CascadeEngine()
-    eng.load_scenario(path)
+    try:
+        eng = CascadeEngine()
+        eng.load_scenario(path)
+    except Exception as e:
+        return {"error": f"Failed to load scenario: {e}"}
 
     profile = req.profile.model_dump()
     summary = eng.summary(profile=profile)

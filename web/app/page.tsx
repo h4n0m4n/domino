@@ -1,520 +1,306 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
-import {
-  ReactFlow,
-  Background,
-  Controls,
-  MiniMap,
-  type Node,
-  type Edge,
-  Position,
-  MarkerType,
-  Handle,
-} from "@xyflow/react";
-import { scenarios as builtinScenarios, type ScenarioNode, type ScenarioData } from "./scenario-data";
-
-/* ═══════════════════════════════════════════════════════════════
-   SECTOR THEMING
-   ═══════════════════════════════════════════════════════════════ */
+import { useState, useMemo, useEffect, useRef } from "react";
+import { scenarios, type ScenarioNode } from "./scenario-data";
 
 const SECTOR: Record<string, { color: string; label: string }> = {
-  security:   { color: "#ff4444", label: "SEC" },
-  energy:     { color: "#f0a030", label: "NRG" },
-  food:       { color: "#3fb950", label: "FOOD" },
-  transport:  { color: "#58a6ff", label: "TRNS" },
-  employment: { color: "#bc8cff", label: "JOBS" },
-  currency:   { color: "#e3b341", label: "FX" },
-  finance:    { color: "#58a6ff", label: "FIN" },
-  health:     { color: "#f778ba", label: "HLTH" },
-  technology: { color: "#bc8cff", label: "TECH" },
-  housing:    { color: "#da7756", label: "HOUS" },
+  security: { color: "#ff4444", label: "SEC" }, energy: { color: "#f0a030", label: "NRG" },
+  food: { color: "#3fb950", label: "FOOD" }, transport: { color: "#58a6ff", label: "TRNS" },
+  employment: { color: "#bc8cff", label: "JOBS" }, currency: { color: "#e3b341", label: "FX" },
+  finance: { color: "#58a6ff", label: "FIN" }, health: { color: "#f778ba", label: "HLTH" },
+  technology: { color: "#bc8cff", label: "TECH" }, housing: { color: "#da7756", label: "HOUS" },
 };
-
-const sc = (sector: string) => SECTOR[sector] || { color: "#8b949e", label: "?" };
-
-const SCENARIO_ACCENT: Record<string, string> = {
-  hormuz_strait: "#ff4444",
-  dollar_crisis: "#f0a030",
-  ai_displacement: "#bc8cff",
-  pandemic_v2: "#3fb950",
+const sc = (s: string) => SECTOR[s] || { color: "#8b949e", label: "?" };
+const ACCENT: Record<string, string> = {
+  hormuz_strait: "#ff4444", dollar_crisis: "#f0a030", ai_displacement: "#bc8cff",
+  pandemic_v2: "#3fb950", taiwan_chips: "#22d3ee", climate_food: "#65a30d",
+  turkey_earthquake: "#ea580c", crypto_crash: "#d946ef", energy_transition: "#10b981",
 };
+const KEYS = Object.keys(scenarios);
 
-/* ═══════════════════════════════════════════════════════════════
-   CUSTOM NODE
-   ═══════════════════════════════════════════════════════════════ */
+interface Profile { monthly_fuel_spend: number; monthly_energy_bill: number; monthly_groceries: number; monthly_rent: number; monthly_income: number; savings: number; }
+const BMAP: Record<string, keyof Profile> = { energy: "monthly_energy_bill", transport: "monthly_fuel_spend", food: "monthly_groceries", housing: "monthly_rent" };
+const RISK_SECTORS = new Set(["employment", "finance", "technology", "health", "security"]);
 
-interface DominoNodeData {
-  node: ScenarioNode;
-  isRoot: boolean;
-  personalCost: number | null;
-  [key: string]: unknown;
-}
+interface LN { node: ScenarioNode; x: number; y: number; depth: number }
+interface LE { fromId: string; toId: string; color: string }
 
-function DominoNode({ data }: { data: DominoNodeData }) {
-  const { node, isRoot, personalCost } = data;
-  const { color, label } = sc(node.sector);
-  const isPersonal = node.region === "personal";
-  const severity = Math.abs(node.magnitude) >= 50 ? "critical" : Math.abs(node.magnitude) >= 20 ? "high" : "normal";
-
-  return (
-    <>
-      <Handle type="target" position={Position.Top} style={{ background: color, border: "none", width: 6, height: 6 }} />
-
-      <div
-        className={`rounded-xl border backdrop-blur-sm transition-all ${isRoot ? "node-pulse" : ""} ${isPersonal ? "node-pulse" : ""}`}
-        style={{
-          background: isPersonal
-            ? "linear-gradient(135deg, rgba(255,68,68,0.15), rgba(255,68,68,0.05))"
-            : isRoot
-            ? "linear-gradient(135deg, rgba(255,68,68,0.12), rgba(13,17,23,0.95))"
-            : "rgba(13,17,23,0.92)",
-          borderColor: isPersonal ? "#ff444466" : isRoot ? "#ff444444" : `${color}33`,
-          minWidth: isRoot ? 280 : isPersonal ? 260 : 220,
-          maxWidth: isRoot ? 320 : 280,
-        }}
-      >
-        {/* Header */}
-        <div className="flex items-center gap-2 px-3 pt-3 pb-1">
-          <span
-            className="text-[9px] font-black tracking-widest px-1.5 py-0.5 rounded"
-            style={{ background: `${color}22`, color, border: `1px solid ${color}33` }}
-          >
-            {label}
-          </span>
-          {node.delay_days > 0 && (
-            <span className="text-[9px] text-[#484f58] ml-auto">+{node.delay_days}d</span>
-          )}
-          {isRoot && (
-            <span className="text-[9px] font-bold text-[#ff4444] ml-auto tracking-wider">TRIGGER</span>
-          )}
-        </div>
-
-        {/* Title */}
-        <div className="px-3 pb-1">
-          <div className={`font-semibold leading-tight ${isRoot ? "text-[13px]" : "text-[11px]"}`} style={{ color: isPersonal ? "#ff4444" : "#e6edf3" }}>
-            {node.event}
-          </div>
-        </div>
-
-        {/* Magnitude Bar */}
-        <div className="px-3 pb-2">
-          <div className="flex items-center gap-2">
-            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: `${color}15` }}>
-              <div
-                className="h-full rounded-full transition-all duration-700"
-                style={{
-                  width: `${Math.min(100, Math.abs(node.magnitude) * (node.magnitude > 50 ? 1 : 1.5))}%`,
-                  background: `linear-gradient(90deg, ${color}88, ${color})`,
-                }}
-              />
-            </div>
-            <span className="text-[10px] font-bold shrink-0" style={{ color }}>
-              {node.direction === "up" ? "+" : node.direction === "down" ? "-" : ""}{node.magnitude}{node.unit === "%" ? "%" : ""}
-            </span>
-          </div>
-        </div>
-
-        {/* Personal Cost */}
-        {isPersonal && personalCost !== null && personalCost !== 0 && (
-          <div className="mx-3 mb-3 px-2.5 py-2 rounded-lg" style={{ background: "rgba(255,68,68,0.12)", border: "1px solid rgba(255,68,68,0.25)" }}>
-            <div className="text-[9px] text-[#ff4444] font-bold tracking-wider mb-0.5">YOUR COST</div>
-            <div className="text-lg font-black text-[#ff4444]">
-              TRY {personalCost >= 0 ? "+" : ""}{personalCost.toLocaleString("tr-TR")}<span className="text-[10px] font-normal text-[#ff444488]">/mo</span>
-            </div>
-          </div>
-        )}
-
-        {/* Confidence */}
-        <div className="px-3 pb-2 flex items-center gap-3">
-          <div className="flex gap-0.5">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div
-                key={i}
-                className="w-1 h-3 rounded-sm"
-                style={{
-                  background: i <= Math.round(node.confidence * 5) ? color : `${color}22`,
-                }}
-              />
-            ))}
-          </div>
-          <span className="text-[8px] text-[#484f58]">{(node.confidence * 100).toFixed(0)}% confidence</span>
-        </div>
-      </div>
-
-      <Handle type="source" position={Position.Bottom} style={{ background: color, border: "none", width: 6, height: 6 }} />
-    </>
-  );
-}
-
-const nodeTypes = { domino: DominoNode };
-
-/* ═══════════════════════════════════════════════════════════════
-   LAYOUT ENGINE
-   ═══════════════════════════════════════════════════════════════ */
-
-function layoutCascade(nodes: ScenarioNode[]): { rfNodes: Node[]; rfEdges: Edge[] } {
-  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-  const childSet = new Set(nodes.flatMap((n) => n.children));
-  const roots = nodes.filter((n) => !childSet.has(n.id));
-
-  const positions = new Map<string, { x: number; y: number }>();
+function doLayout(nodes: ScenarioNode[]): { lns: LN[]; les: LE[]; w: number; h: number } {
+  const map = new Map(nodes.map(n => [n.id, n]));
+  const childSet = new Set(nodes.flatMap(n => n.children));
+  const roots = nodes.filter(n => !childSet.has(n.id));
   const depths = new Map<string, number>();
-  const visited = new Set<string>();
-
-  function assignDepth(id: string, depth: number) {
-    if (visited.has(id)) return;
-    visited.add(id);
-    depths.set(id, depth);
-    const node = nodeMap.get(id);
-    if (node) node.children.forEach((cid) => assignDepth(cid, depth + 1));
-  }
-  roots.forEach((r) => assignDepth(r.id, 0));
-
-  const maxDepth = Math.max(...depths.values(), 0);
-  const byDepth = new Map<number, string[]>();
-  depths.forEach((d, id) => {
-    if (!byDepth.has(d)) byDepth.set(d, []);
-    byDepth.get(d)!.push(id);
-  });
-
-  const Y_GAP = 180;
-  const X_GAP = 300;
-
-  byDepth.forEach((ids, depth) => {
-    const totalWidth = (ids.length - 1) * X_GAP;
-    ids.forEach((id, i) => {
-      positions.set(id, {
-        x: -totalWidth / 2 + i * X_GAP,
-        y: depth * Y_GAP,
-      });
-    });
-  });
-
-  const rfNodes: Node[] = nodes.map((n) => ({
-    id: n.id,
-    type: "domino",
-    position: positions.get(n.id) || { x: 0, y: 0 },
-    data: { node: n, isRoot: !childSet.has(n.id) && depths.get(n.id) === 0, personalCost: null } satisfies DominoNodeData,
-  }));
-
-  const rfEdges: Edge[] = nodes.flatMap((n) =>
-    n.children.map((cid) => ({
-      id: `${n.id}-${cid}`,
-      source: n.id,
-      target: cid,
-      animated: true,
-      style: { stroke: sc(n.sector).color, strokeWidth: 2, opacity: 0.6 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: sc(n.sector).color, width: 14, height: 14 },
-    }))
-  );
-
-  return { rfNodes, rfEdges };
+  const vis = new Set<string>();
+  function walk(id: string, d: number) { if (vis.has(id)) return; vis.add(id); depths.set(id, d); map.get(id)?.children.forEach(c => walk(c, d + 1)); }
+  roots.forEach(r => walk(r.id, 0));
+  const byD = new Map<number, string[]>();
+  depths.forEach((d, id) => { if (!byD.has(d)) byD.set(d, []); byD.get(d)!.push(id); });
+  const CW = 310, CH = 195, PAD = 50;
+  const maxC = Math.max(...Array.from(byD.values()).map(a => a.length), 1);
+  const tw = Math.max(maxC * CW + PAD * 2, 800);
+  const pos = new Map<string, [number, number]>();
+  byD.forEach((ids, d) => { const rw = ids.length * CW; const sx = (tw - rw) / 2; ids.forEach((id, i) => pos.set(id, [sx + i * CW + CW / 2, d * CH + 70])); });
+  const lns: LN[] = nodes.map(n => { const p = pos.get(n.id) || [tw / 2, 70]; return { node: n, x: p[0], y: p[1], depth: depths.get(n.id) || 0 }; });
+  const les: LE[] = nodes.flatMap(n => n.children.filter(c => map.has(c)).map(c => ({ fromId: n.id, toId: c, color: sc(n.sector).color })));
+  return { lns, les, w: tw, h: byD.size * CH + 60 };
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   PROFILE & IMPACT
-   ═══════════════════════════════════════════════════════════════ */
-
-interface Profile {
-  monthly_fuel_spend: number;
-  monthly_energy_bill: number;
-  monthly_groceries: number;
-  monthly_rent: number;
-  monthly_income: number;
-  savings: number;
+function calcImpacts(nodes: ScenarioNode[], p: Profile) {
+  const nm = new Map(nodes.map(n => [n.id, n]));
+  function hasPD(n: ScenarioNode): boolean { return n.children.some(c => { const ch = nm.get(c); return ch ? (ch.region === "personal" || hasPD(ch)) : false; }); }
+  function hasSSC(n: ScenarioNode, bk: string): boolean { return n.children.some(c => { const ch = nm.get(c); return ch ? BMAP[ch.sector] === bk : false; }); }
+  const imp = new Map<string, number>(); let tot = 0;
+  for (const n of nodes) { const bk = BMAP[n.sector]; if (!bk) continue; const sp = p[bk]; if (!sp || sp <= 0) continue; if (n.region !== "personal" && (hasPD(n) || hasSSC(n, bk))) continue; const ch = n.direction === "down" ? -(sp * n.magnitude / 100) : sp * n.magnitude / 100; imp.set(n.id, Math.round(ch)); tot += ch; }
+  return { imp, tot: Math.round(tot), annual: Math.round(tot * 12) };
 }
 
-const BUDGET_MAP: Record<string, keyof Profile> = {
-  energy: "monthly_energy_bill",
-  transport: "monthly_fuel_spend",
-  food: "monthly_groceries",
-  housing: "monthly_rent",
-};
+function drawEdges(canvas: HTMLCanvasElement, les: LE[], posMap: Map<string, [number, number]>, nodeH: number) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+  canvas.width = canvas.offsetWidth * dpr;
+  canvas.height = canvas.offsetHeight * dpr;
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
 
-function computeImpacts(nodes: ScenarioNode[], profile: Profile) {
-  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-
-  function hasPersonalDesc(n: ScenarioNode): boolean {
-    return n.children.some((cid) => {
-      const c = nodeMap.get(cid);
-      return c && (c.region === "personal" || hasPersonalDesc(c));
-    });
+  const t = performance.now() / 1000;
+  for (const e of les) {
+    const f = posMap.get(e.fromId);
+    const to = posMap.get(e.toId);
+    if (!f || !to) continue;
+    const midY = (f[1] + nodeH / 2 + to[1] - nodeH / 2) / 2;
+    ctx.beginPath();
+    ctx.moveTo(f[0], f[1] + nodeH / 2);
+    ctx.bezierCurveTo(f[0], midY, to[0], midY, to[0], to[1] - nodeH / 2);
+    ctx.strokeStyle = e.color + "30";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([]);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(f[0], f[1] + nodeH / 2);
+    ctx.bezierCurveTo(f[0], midY, to[0], midY, to[0], to[1] - nodeH / 2);
+    ctx.strokeStyle = e.color + "66";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.lineDashOffset = -t * 14;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const ax = to[0], ay = to[1] - nodeH / 2;
+    ctx.beginPath();
+    ctx.moveTo(ax - 6, ay - 8);
+    ctx.lineTo(ax, ay);
+    ctx.lineTo(ax + 6, ay - 8);
+    ctx.strokeStyle = e.color + "77";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
   }
-
-  function hasSameSectorChild(n: ScenarioNode, budgetKey: string): boolean {
-    return n.children.some((cid) => {
-      const c = nodeMap.get(cid);
-      return c && BUDGET_MAP[c.sector] === budgetKey;
-    });
-  }
-
-  const impacts = new Map<string, number>();
-  let total = 0;
-
-  for (const n of nodes) {
-    const budgetKey = BUDGET_MAP[n.sector];
-    if (!budgetKey) continue;
-    const spend = profile[budgetKey];
-    if (!spend) continue;
-    if (n.region !== "personal" && (hasPersonalDesc(n) || hasSameSectorChild(n, budgetKey))) continue;
-
-    const pct = n.magnitude / 100;
-    const change = n.direction === "down" ? -(spend * pct) : spend * pct;
-    impacts.set(n.id, Math.round(change));
-    total += change;
-  }
-
-  return { impacts, totalMonthly: Math.round(total), totalAnnual: Math.round(total * 12) };
 }
-
-/* ═══════════════════════════════════════════════════════════════
-   MAIN PAGE
-   ═══════════════════════════════════════════════════════════════ */
 
 export default function Home() {
-  const [scenarios, setScenarios] = useState(builtinScenarios);
   const [active, setActive] = useState("hormuz_strait");
-  const SCENARIOS = Object.keys(scenarios);
-
-  useEffect(() => {
-    fetch("/api/scenarios")
-      .then((r) => r.ok ? r.json() : null)
-      .then((list) => {
-        if (!list || !Array.isArray(list)) return;
-        const toLoad = list.filter((s: { id: string }) => !(s.id in builtinScenarios));
-        toLoad.forEach((s: { id: string }) => {
-          fetch(`/api/scenarios/${s.id}`)
-            .then((r) => r.ok ? r.json() : null)
-            .then((full) => {
-              if (!full || full.error || !full.chain) return;
-              const nodes: ScenarioNode[] = full.chain.nodes;
-              const edges = full.chain.edges;
-              setScenarios((prev) => ({
-                ...prev,
-                [s.id]: { scenario: full.scenario, chain: { nodes, edges } } as ScenarioData,
-              }));
-            })
-            .catch(() => {});
-        });
-      })
-      .catch(() => {});
-  }, []);
-  const [profile, setProfile] = useState<Profile>({
-    monthly_fuel_spend: 3000,
-    monthly_energy_bill: 2500,
-    monthly_groceries: 8000,
-    monthly_rent: 15000,
-    monthly_income: 45000,
-    savings: 150000,
-  });
-  const [simulated, setSimulated] = useState(false);
-  const [impactMap, setImpactMap] = useState(new Map<string, number>());
-  const [totalMonthly, setTotalMonthly] = useState(0);
-  const [totalAnnual, setTotalAnnual] = useState(0);
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [profile, setProfile] = useState<Profile>({ monthly_fuel_spend: 3000, monthly_energy_bill: 2500, monthly_groceries: 8000, monthly_rent: 15000, monthly_income: 45000, savings: 150000 });
+  const [simDone, setSimDone] = useState(false);
+  const [impMap, setImpMap] = useState<Record<string, number>>({});
+  const [totM, setTotM] = useState(0);
+  const [totA, setTotA] = useState(0);
+  const [sel, setSel] = useState<string | null>(null);
+  const [showPanel, setShowPanel] = useState(true);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animRef = useRef<number>(0);
 
   const data = scenarios[active as keyof typeof scenarios];
-  const accent = SCENARIO_ACCENT[active] || "#ff4444";
+  const accent = ACCENT[active] || "#58a6ff";
+  const { lns, les, w: svgW, h: svgH } = useMemo(() => doLayout(data.chain.nodes as ScenarioNode[]), [active]);
+  const posMap = useMemo(() => { const m = new Map<string, [number, number]>(); lns.forEach(l => m.set(l.node.id, [l.x, l.y])); return m; }, [lns]);
 
-  const { rfNodes, rfEdges } = useMemo(() => layoutCascade(data.chain.nodes as ScenarioNode[]), [data]);
+  useEffect(() => {
+    function animate() {
+      if (canvasRef.current) drawEdges(canvasRef.current, les, posMap, 80);
+      animRef.current = requestAnimationFrame(animate);
+    }
+    animRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [les, posMap]);
 
-  const nodesWithImpact = useMemo(() => {
-    if (!simulated) return rfNodes;
-    return rfNodes.map((n) => ({
-      ...n,
-      data: { ...n.data, personalCost: impactMap.get(n.id) ?? null },
-    }));
-  }, [rfNodes, simulated, impactMap]);
+  function handleScenario(k: string) { setActive(k); setSimDone(false); setImpMap({}); setSel(null); }
+  function handleSimulate() {
+    const r = calcImpacts(data.chain.nodes as ScenarioNode[], profile);
+    const obj: Record<string, number> = {};
+    r.imp.forEach((v, k) => { obj[k] = v; });
+    setImpMap(obj); setTotM(r.tot); setTotA(r.annual); setSimDone(true);
+  }
+  function handleProfileChange(key: keyof Profile, val: string) { setProfile(prev => ({ ...prev, [key]: parseFloat(val) || 0 })); setSimDone(false); }
 
-  const handleSimulate = useCallback(() => {
-    const result = computeImpacts(data.chain.nodes as ScenarioNode[], profile);
-    setImpactMap(result.impacts);
-    setTotalMonthly(result.totalMonthly);
-    setTotalAnnual(result.totalAnnual);
-    setSimulated(true);
-  }, [data, profile]);
-
-  const handleScenarioChange = useCallback((key: string) => {
-    setActive(key);
-    setSimulated(false);
-    setImpactMap(new Map());
-  }, []);
-
-  const savingsRunway = totalMonthly > 0 && profile.savings > 0
-    ? Math.round((profile.savings / totalMonthly) * 10) / 10
-    : null;
-
-  const fmt = (n: number) => `${n >= 0 ? "+" : ""}${n.toLocaleString("tr-TR")}`;
-
-  const field = (label: string, key: keyof Profile) => (
-    <div key={key}>
-      <label className="text-[10px] text-[#8b949e] mb-1 block">{label}</label>
-      <input
-        type="number"
-        value={profile[key] || ""}
-        onChange={(e) => { setProfile({ ...profile, [key]: parseFloat(e.target.value) || 0 }); setSimulated(false); }}
-        className="w-full bg-[#0d1117] border border-[#21262d] rounded-lg text-xs px-3 py-2 text-white outline-none focus:border-[#58a6ff] transition-colors"
-        placeholder="0"
-      />
-    </div>
-  );
+  const savRun = totM > 0 && profile.savings > 0 ? Math.round((profile.savings / totM) * 10) / 10 : null;
+  const fmt = (n: number) => (n >= 0 ? "+" : "") + n.toLocaleString("tr-TR");
+  const selNode = sel ? (data.chain.nodes as ScenarioNode[]).find(n => n.id === sel) : null;
+  const NW = 240, NH = 88;
 
   return (
-    <div className="h-screen flex flex-col">
-      {/* ── Header ── */}
-      <header className="h-12 border-b border-[#21262d] px-4 flex items-center justify-between shrink-0 bg-[#0d1117]/80 backdrop-blur-md z-50">
-        <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs" style={{ background: `${accent}18`, color: accent, border: `1px solid ${accent}33` }}>D</div>
-          <span className="text-sm font-bold tracking-tight">Domino</span>
-          <span className="text-[10px] text-[#484f58] hidden sm:inline">Cascading Impact Engine</span>
-        </div>
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, display: "flex", flexDirection: "column", background: "#06080d", color: "#e6edf3", fontFamily: "Inter,-apple-system,sans-serif" }}>
 
-        {/* Scenario Tabs */}
-        <div className="flex items-center gap-1">
-          {SCENARIOS.map((key) => {
-            const s = scenarios[key as keyof typeof scenarios];
-            const c = SCENARIO_ACCENT[key] || "#8b949e";
-            const isActive = active === key;
-            return (
-              <button
-                key={key}
-                onClick={() => handleScenarioChange(key)}
-                className="px-2.5 py-1 rounded-md text-[10px] font-medium transition-all"
-                style={{
-                  background: isActive ? `${c}18` : "transparent",
-                  color: isActive ? c : "#484f58",
-                  border: `1px solid ${isActive ? `${c}44` : "transparent"}`,
-                }}
-              >
-                {s.scenario.name.split(" ").slice(0, 2).join(" ")}
-              </button>
-            );
+      {/* HEADER */}
+      <div style={{ height: 46, borderBottom: "1px solid #21262d", padding: "0 12px", display: "flex", alignItems: "center", gap: 8, background: "#0d1117", flexShrink: 0, zIndex: 20 }}>
+        <div style={{ width: 26, height: 26, borderRadius: 6, display: "grid", placeItems: "center", fontWeight: 900, fontSize: 12, background: accent + "20", color: accent, border: "1px solid " + accent + "44", flexShrink: 0 }}>D</div>
+        <b style={{ fontSize: 14, flexShrink: 0 }}>Domino</b>
+        <div style={{ display: "flex", gap: 3, flexWrap: "wrap", flex: 1, justifyContent: "center" }}>
+          {KEYS.map(k => {
+            const s = scenarios[k as keyof typeof scenarios]; const c = ACCENT[k] || "#888"; const on = active === k;
+            return <button key={k} type="button" onClick={() => handleScenario(k)} style={{ padding: "4px 8px", borderRadius: 5, fontSize: 9, fontWeight: on ? 700 : 500, background: on ? c + "22" : "transparent", color: on ? c : "#555", border: on ? "1px solid " + c + "55" : "1px solid transparent", cursor: "pointer", whiteSpace: "nowrap", outline: "none" }}>{s.scenario.name.split(" ").slice(0, 2).join(" ")}</button>;
           })}
         </div>
-
-        <div className="flex items-center gap-2">
-          <button onClick={() => setPanelOpen(!panelOpen)} className="text-[10px] text-[#8b949e] px-2 py-1 rounded border border-[#21262d] hover:border-[#8b949e] transition-colors">
-            {panelOpen ? "Hide Panel" : "Show Panel"}
-          </button>
-        </div>
-      </header>
-
-      {/* ── Crisis Banner ── */}
-      <div className="h-9 border-b flex items-center px-4 shrink-0" style={{ borderColor: "#21262d", background: `${accent}06` }}>
-        <span className="text-[9px] font-black tracking-widest px-2 py-0.5 rounded mr-3" style={{ background: `${accent}18`, color: accent, border: `1px solid ${accent}33` }}>
-          ACTIVE CRISIS
-        </span>
-        <span className="text-xs font-semibold text-[#e6edf3]">{data.scenario.name}</span>
-        <span className="text-[10px] text-[#484f58] ml-3 truncate hidden md:inline">{data.scenario.description}</span>
-        <span className="ml-auto text-[10px] text-[#484f58] shrink-0">{data.chain.nodes.length} nodes</span>
+        <button type="button" onClick={() => setShowPanel(p => !p)} style={{ fontSize: 10, color: "#888", padding: "4px 8px", borderRadius: 5, border: "1px solid #21262d", background: "transparent", cursor: "pointer", flexShrink: 0, outline: "none" }}>{showPanel ? "Hide" : "Show"}</button>
       </div>
 
-      {/* ── Main Area ── */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Graph */}
-        <div className="flex-1 relative">
-          <ReactFlow
-            nodes={nodesWithImpact}
-            edges={rfEdges}
-            nodeTypes={nodeTypes}
-            fitView
-            fitViewOptions={{ padding: 0.3 }}
-            minZoom={0.2}
-            maxZoom={1.5}
-            defaultEdgeOptions={{ animated: true }}
-            proOptions={{ hideAttribution: true }}
-          >
-            <Background color="#21262d" gap={40} size={1} />
-            <Controls position="bottom-left" />
-            <MiniMap
-              nodeColor={(n) => {
-                const nd = n.data as DominoNodeData;
-                return nd?.node ? sc(nd.node.sector).color : "#8b949e";
-              }}
-              maskColor="rgba(6,8,13,0.85)"
-              position="bottom-right"
-            />
-          </ReactFlow>
+      {/* BANNER */}
+      <div style={{ height: 30, borderBottom: "1px solid #21262d", padding: "0 12px", display: "flex", alignItems: "center", gap: 10, background: accent + "08", flexShrink: 0 }}>
+        <span style={{ fontSize: 8, fontWeight: 900, letterSpacing: 1.5, padding: "2px 6px", borderRadius: 3, background: accent + "22", color: accent }}>CRISIS</span>
+        <b style={{ fontSize: 11 }}>{data.scenario.name}</b>
+        <span style={{ fontSize: 9, color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{data.scenario.description}</span>
+      </div>
 
-          {/* Impact Floating Badge */}
-          {simulated && (
-            <div className="absolute top-4 left-4 fade-in">
-              <div className="rounded-xl border px-5 py-4 backdrop-blur-md" style={{ background: "rgba(13,17,23,0.9)", borderColor: "#ff444444" }}>
-                <div className="text-[9px] text-[#8b949e] font-bold tracking-widest mb-1">TOTAL PERSONAL IMPACT</div>
-                <div className="text-2xl font-black text-[#ff4444]">TRY {fmt(totalMonthly)}<span className="text-xs font-normal text-[#ff444466]">/mo</span></div>
-                <div className="text-sm font-bold text-[#f0a030] mt-0.5">TRY {fmt(totalAnnual)}<span className="text-xs font-normal text-[#f0a03066]">/yr</span></div>
-                {savingsRunway && (
-                  <div className="mt-2 pt-2 border-t border-[#21262d]">
-                    <div className="text-[9px] text-[#8b949e] mb-1">SAVINGS DEPLETION</div>
-                    <div className="flex items-end gap-1">
-                      <span className="text-lg font-black" style={{ color: savingsRunway > 12 ? "#3fb950" : savingsRunway > 6 ? "#f0a030" : "#ff4444" }}>
-                        {savingsRunway}
-                      </span>
-                      <span className="text-[10px] text-[#484f58] pb-0.5">months</span>
+      {/* BODY */}
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+
+        {/* GRAPH AREA */}
+        <div style={{ flex: 1, overflow: "auto", position: "relative" }}>
+          <div style={{ position: "relative", width: svgW, height: svgH, minWidth: "100%", minHeight: "100%" }}>
+            {/* Canvas for animated connection lines */}
+            <canvas ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, width: svgW, height: svgH, pointerEvents: "none" }} />
+
+            {/* Node cards as positioned HTML divs */}
+            {lns.map(l => {
+              const n = l.node;
+              const { color, label } = sc(n.sector);
+              const isRoot = l.depth === 0;
+              const isP = n.region === "personal";
+              const cost = impMap[n.id] || null;
+              const isSel = sel === n.id;
+              const w = isRoot ? 290 : isP ? 260 : NW;
+
+              return (
+                <div key={n.id} onClick={() => setSel(sel === n.id ? null : n.id)} style={{
+                  position: "absolute", left: l.x - w / 2, top: l.y - NH / 2, width: w, cursor: "pointer",
+                  borderRadius: 10,                   border: "1.5px solid " + (isSel ? color : isP ? "#ff444455" : isRoot ? "#ff444444" : color + "25"),
+                  background: isP
+                    ? "linear-gradient(145deg, rgba(255,68,68,0.12) 0%, rgba(255,30,30,0.04) 100%)"
+                    : isRoot
+                    ? "linear-gradient(145deg, rgba(255,68,68,0.08) 0%, rgba(13,17,23,0.97) 100%)"
+                    : "linear-gradient(145deg, rgba(22,27,34,0.98) 0%, rgba(13,17,23,0.95) 100%)",
+                  boxShadow: isSel
+                    ? "0 0 24px " + color + "35, 0 4px 12px rgba(0,0,0,0.4)"
+                    : isRoot
+                    ? "0 0 20px #ff444418, 0 4px 16px rgba(0,0,0,0.5)"
+                    : isP
+                    ? "0 0 16px #ff444415, 0 3px 10px rgba(0,0,0,0.4)"
+                    : "0 2px 10px rgba(0,0,0,0.5), 0 0 1px " + color + "15",
+                  transition: "border-color 0.2s, box-shadow 0.2s", zIndex: 2,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "7px 9px 2px" }}>
+                    <span style={{ fontSize: 7, fontWeight: 900, letterSpacing: 1, padding: "1px 4px", borderRadius: 3, background: color + "22", color, border: "1px solid " + color + "33" }}>{label}</span>
+                    {isRoot && <span style={{ fontSize: 7, fontWeight: 900, color: "#ff4444" }}>TRIGGER</span>}
+                    <span style={{ marginLeft: "auto", fontSize: 8, fontWeight: 800, color }}>{n.direction === "up" ? "+" : n.direction === "down" ? "-" : ""}{n.magnitude}{n.unit === "%" ? "%" : ""}</span>
+                    {n.delay_days > 0 && <span style={{ fontSize: 7, color: "#484f58" }}>+{n.delay_days}d</span>}
+                  </div>
+                  <div style={{ padding: "2px 9px 4px", fontSize: isRoot ? 12.5 : isP ? 10.5 : 9.5, fontWeight: isRoot ? 700 : 600, color: isP ? "#ff4444" : "#e6edf3", lineHeight: 1.35, letterSpacing: isRoot ? -0.2 : 0 }}>{n.event}</div>
+                  <div style={{ padding: "0 9px 6px", display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ flex: 1, height: 3, borderRadius: 2, background: color + "18", overflow: "hidden" }}>
+                      <div style={{ height: "100%", borderRadius: 2, width: Math.min(100, Math.abs(n.magnitude) * 1.5) + "%", background: `linear-gradient(90deg, ${color}88, ${color})` }} />
                     </div>
-                    <div className="mt-1 h-1.5 rounded-full bg-[#21262d] overflow-hidden w-40">
-                      <div
-                        className="h-full rounded-full transition-all duration-1000"
-                        style={{
-                          width: `${Math.min(100, (savingsRunway / 36) * 100)}%`,
-                          background: savingsRunway > 12 ? "#3fb950" : savingsRunway > 6 ? "#f0a030" : "#ff4444",
-                        }}
-                      />
+                    <div style={{ display: "flex", gap: 1.5, flexShrink: 0 }}>
+                      {[1,2,3,4,5].map(i => <div key={i} style={{ width: 2, height: 8, borderRadius: 1, background: i <= Math.round(n.confidence * 5) ? color : color + "18" }} />)}
                     </div>
                   </div>
-                )}
-              </div>
+                  {isP && cost !== null && cost !== 0 && (
+                    <div style={{ margin: "2px 7px 8px", padding: "7px 10px", borderRadius: 7, background: cost > 0 ? "linear-gradient(135deg, rgba(255,68,68,0.12), rgba(255,30,30,0.05))" : "linear-gradient(135deg, rgba(63,185,80,0.12), rgba(63,185,80,0.05))", border: cost > 0 ? "1px solid rgba(255,68,68,0.25)" : "1px solid rgba(63,185,80,0.25)" }}>
+                      <div style={{ fontSize: 7, fontWeight: 900, color: cost > 0 ? "#ff4444" : "#3fb950", letterSpacing: 1.5, marginBottom: 2 }}>YOUR MONTHLY COST</div>
+                      <span style={{ fontSize: 18, fontWeight: 900, color: cost > 0 ? "#ff4444" : "#3fb950" }}>TRY {fmt(cost)}</span>
+                      <span style={{ fontSize: 9, color: cost > 0 ? "#ff444466" : "#3fb95066" }}>/mo</span>
+                    </div>
+                  )}
+                  {isP && (cost === null || cost === 0) && RISK_SECTORS.has(n.sector) && (
+                    <div style={{ margin: "2px 7px 8px", padding: "6px 10px", borderRadius: 7, background: "linear-gradient(135deg, rgba(240,160,48,0.12), rgba(240,160,48,0.05))", border: "1px solid rgba(240,160,48,0.25)" }}>
+                      <div style={{ fontSize: 7, fontWeight: 900, color: "#f0a030", letterSpacing: 1.5, marginBottom: 2 }}>YOUR RISK LEVEL</div>
+                      <span style={{ fontSize: 16, fontWeight: 900, color: n.magnitude >= 40 ? "#ff4444" : n.magnitude >= 20 ? "#f0a030" : "#e3b341" }}>
+                        {n.magnitude >= 60 ? "CRITICAL" : n.magnitude >= 40 ? "HIGH" : n.magnitude >= 20 ? "MODERATE" : "LOW"}
+                      </span>
+                      <span style={{ fontSize: 10, color: "#f0a03088", marginLeft: 6 }}>{n.magnitude}%</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Floating impact */}
+          {simDone && (
+            <div style={{ position: "fixed", bottom: 24, left: 24, zIndex: 30, borderRadius: 14, border: "1px solid #ff444433", padding: "18px 22px", background: "linear-gradient(145deg, rgba(13,17,23,0.97), rgba(6,8,13,0.98))", backdropFilter: "blur(12px)", boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 20px rgba(255,68,68,0.08)" }}>
+              <div style={{ fontSize: 8, color: "#888", fontWeight: 900, letterSpacing: 2 }}>TOTAL PERSONAL IMPACT</div>
+              <div style={{ fontSize: 30, fontWeight: 900, color: "#ff4444", lineHeight: 1.1, marginTop: 4 }}>TRY {fmt(totM)}<span style={{ fontSize: 11, fontWeight: 400, color: "#ff444444" }}>/mo</span></div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#f0a030", marginTop: 3 }}>TRY {fmt(totA)}<span style={{ fontSize: 10, color: "#f0a03044" }}>/yr</span></div>
+              {savRun !== null && (
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #21262d" }}>
+                  <div style={{ fontSize: 7, color: "#888", fontWeight: 800, letterSpacing: 1.5, marginBottom: 3 }}>SAVINGS RUNWAY</div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                    <span style={{ fontSize: 24, fontWeight: 900, color: savRun > 12 ? "#3fb950" : savRun > 6 ? "#f0a030" : "#ff4444" }}>{savRun}</span>
+                    <span style={{ fontSize: 10, color: "#555" }}>months</span>
+                  </div>
+                  <div style={{ marginTop: 5, height: 5, borderRadius: 3, background: "#21262d", width: 140, overflow: "hidden" }}>
+                    <div style={{ height: "100%", borderRadius: 3, width: Math.min(100, (savRun / 36) * 100) + "%", background: `linear-gradient(90deg, ${savRun > 12 ? "#3fb950" : savRun > 6 ? "#f0a030" : "#ff4444"}88, ${savRun > 12 ? "#3fb950" : savRun > 6 ? "#f0a030" : "#ff4444"})` }} />
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* ── Side Panel ── */}
-        {panelOpen && (
-          <div className="w-[320px] border-l border-[#21262d] bg-[#0d1117]/80 backdrop-blur-md overflow-y-auto scrollbar-thin shrink-0 p-4 fade-in">
-            <h3 className="text-[10px] font-bold text-[#8b949e] uppercase tracking-widest mb-3">Your Profile</h3>
-            <div className="space-y-2">
-              {field("Monthly Fuel (TRY)", "monthly_fuel_spend")}
-              {field("Monthly Energy (TRY)", "monthly_energy_bill")}
-              {field("Monthly Groceries (TRY)", "monthly_groceries")}
-              {field("Monthly Rent (TRY)", "monthly_rent")}
-              {field("Monthly Income (TRY)", "monthly_income")}
-              {field("Total Savings (TRY)", "savings")}
-            </div>
+        {/* SIDE PANEL */}
+        {showPanel && (
+          <div style={{ width: 290, borderLeft: "1px solid #21262d", background: "#0d1117", padding: 14, overflowY: "auto", flexShrink: 0, zIndex: 10 }}>
+            <div style={{ fontSize: 9, fontWeight: 800, color: "#888", letterSpacing: 1.5, marginBottom: 10 }}>YOUR PROFILE</div>
+            {([["Monthly Fuel (TRY)", "monthly_fuel_spend"], ["Monthly Energy (TRY)", "monthly_energy_bill"], ["Monthly Groceries (TRY)", "monthly_groceries"], ["Monthly Rent (TRY)", "monthly_rent"], ["Monthly Income (TRY)", "monthly_income"], ["Total Savings (TRY)", "savings"]] as [string, keyof Profile][]).map(([lbl, key]) => (
+              <div key={key} style={{ marginBottom: 7 }}>
+                <div style={{ fontSize: 9, color: "#888", marginBottom: 2 }}>{lbl}</div>
+                <input type="number" value={profile[key] || ""} onChange={e => handleProfileChange(key, e.target.value)} style={{ width: "100%", background: "#161b22", border: "1px solid #21262d", borderRadius: 6, padding: "7px 10px", color: "#e6edf3", fontSize: 12, outline: "none", boxSizing: "border-box" }} />
+              </div>
+            ))}
+            <button type="button" onClick={handleSimulate} style={{ width: "100%", marginTop: 8, padding: "10px 0", borderRadius: 7, fontWeight: 800, fontSize: 11, background: accent, color: "#fff", border: "none", cursor: "pointer", outline: "none" }}>SIMULATE CASCADE</button>
 
-            <button
-              onClick={handleSimulate}
-              className="w-full mt-4 py-2.5 rounded-lg font-bold text-xs transition-all hover:shadow-lg"
-              style={{ background: accent, color: "#fff", boxShadow: `0 0 20px ${accent}33` }}
-            >
-              SIMULATE CASCADE
-            </button>
-
-            {/* Impact Breakdown */}
-            {simulated && (
-              <div className="mt-5 pt-4 border-t border-[#21262d] fade-in">
-                <h3 className="text-[10px] font-bold text-[#8b949e] uppercase tracking-widest mb-3">Impact Breakdown</h3>
-                <div className="space-y-1.5">
-                  {Array.from(impactMap.entries())
-                    .filter(([, v]) => v !== 0)
-                    .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a))
-                    .map(([id, cost]) => {
-                      const node = (data.chain.nodes as ScenarioNode[]).find((n) => n.id === id);
-                      if (!node) return null;
-                      const { color } = sc(node.sector);
-                      return (
-                        <div key={id} className="flex items-center justify-between text-[10px] px-2 py-1.5 rounded-lg bg-[#161b22] border border-[#21262d]">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className="w-1 h-4 rounded-full shrink-0" style={{ background: color }} />
-                            <span className="text-[#e6edf3] truncate">{node.event}</span>
-                          </div>
-                          <span className="font-bold shrink-0 ml-2" style={{ color: cost > 0 ? "#ff4444" : "#3fb950" }}>
-                            {fmt(cost)}
-                          </span>
-                        </div>
-                      );
-                    })}
+            {selNode && (
+              <div style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid #21262d" }}>
+                <div style={{ fontSize: 8, fontWeight: 800, color: "#888", letterSpacing: 1.5, marginBottom: 6 }}>NODE DETAIL</div>
+                <div style={{ borderRadius: 8, border: "1px solid " + sc(selNode.sector).color + "33", background: sc(selNode.sector).color + "06", padding: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: sc(selNode.sector).color, marginBottom: 4 }}>{selNode.event}</div>
+                  <div style={{ fontSize: 9, color: "#888", lineHeight: 1.5, marginBottom: 8 }}>{selNode.detail}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+                    {[["Magnitude", selNode.magnitude + (selNode.unit === "%" ? "%" : " " + selNode.unit)], ["Delay", selNode.delay_days + " days"], ["Confidence", (selNode.confidence * 100).toFixed(0) + "%"], ["Duration", selNode.duration_days + "d"]].map(([k, v]) => (
+                      <div key={k} style={{ background: "#0d1117", borderRadius: 5, padding: "4px 6px" }}>
+                        <div style={{ fontSize: 7, color: "#555" }}>{k}</div>
+                        <div style={{ fontSize: 10, fontWeight: 700 }}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {selNode.source && <div style={{ fontSize: 8, color: "#555", marginTop: 6 }}>Source: {selNode.source}</div>}
                 </div>
+              </div>
+            )}
+
+            {simDone && (
+              <div style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid #21262d" }}>
+                <div style={{ fontSize: 8, fontWeight: 800, color: "#888", letterSpacing: 1.5, marginBottom: 6 }}>IMPACT BREAKDOWN</div>
+                {Object.entries(impMap).filter(([, v]) => v !== 0).sort(([, a], [, b]) => Math.abs(b) - Math.abs(a)).map(([id, cost]) => {
+                  const nd = (data.chain.nodes as ScenarioNode[]).find(n => n.id === id);
+                  if (!nd) return null;
+                  return (
+                    <div key={id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 9, padding: "5px 7px", marginBottom: 2, borderRadius: 6, background: "#161b22", border: "1px solid #21262d" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, overflow: "hidden" }}>
+                        <div style={{ width: 2.5, height: 12, borderRadius: 2, background: sc(nd.sector).color, flexShrink: 0 }} />
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nd.event}</span>
+                      </div>
+                      <span style={{ fontWeight: 800, color: cost > 0 ? "#ff4444" : "#3fb950", marginLeft: 6, flexShrink: 0 }}>TRY {fmt(cost)}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

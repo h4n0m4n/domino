@@ -1,15 +1,10 @@
-Initial release: Domino — Cascading Impact Simulation Engine
+v0.3: Full audit pass, realistic impact calculations, visual polish
 
-From global events to your kitchen table.
-
-- Core cascade engine with DAG-based domino chain modeling
-- 4 built-in crisis scenarios (Hormuz, Dollar, AI Displacement, Pandemic)
-- Personal impact calculator (translates macro events to your wallet)
-- Interactive web dashboard (Next.js + Tailwind) with 4-scenario selector
-- CLI interface with rich terminal output
-- Real-time data providers (NewsMCP, GDELT, Yahoo Finance, World Bank)
-- AI-powered cascade generation via Ollama (local, free)
-- FastAPI backend with 7 endpoints
-- Full test suite (6/6 passing)
-- Docker support
-- MIT License
+- Full audit on all 9 scenarios: 0 bugs, 0 orphan references, 0 crashes
+- Fixed impact calculation: employment/finance show as RISK indicators, not false dollar amounts
+- Only direct-spending sectors (energy, transport, food, housing) produce monetary impact
+- Personal nodes in employment/finance/health show YOUR RISK LEVEL badge instead
+- Edge case tests: empty profile, negative values, string values, extreme values all handled
+- Visual polish: gradient cards, glow edges, larger root nodes, confidence bars
+- Canvas-based animated connection lines with double-layer glow effect
+- 12/12 tests passing, all 6 edge case profiles returning correct results

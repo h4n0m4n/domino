@@ -16,7 +16,7 @@ Show HN: Domino – See how the Iran war cascades into your grocery bill
 
 **URL:**
 ```
-https://github.com/aykutturksoy5-maker/domino
+https://github.com/h4n0m4n/domino
 ```
 
 **First Comment (post immediately after submitting):**
@@ -43,7 +43,7 @@ What I'd love feedback on:
 3. Should I add compound mode (stack multiple crises)?
 
 Live demo: https://domino-crisis.vercel.app
-GitHub: https://github.com/aykutturksoy5-maker/domino
+GitHub: https://github.com/h4n0m4n/domino
 ```
 
 ---
@@ -69,7 +69,7 @@ The tool has 9 crisis scenarios with 100+ cascade nodes, each backed by real dat
 
 Tools: Python cascade engine + Next.js/React Flow visualization
 
-Interactive version: https://github.com/aykutturksoy5-maker/domino
+Interactive version: https://github.com/h4n0m4n/domino
 
 Data sources: IEA, FAO, World Bank, Reuters, GDELT (all free, no API keys needed)
 ```
@@ -101,7 +101,7 @@ Each node carries magnitude, delay, confidence score, and data citation.
 
 Would love feedback from economists on the transmission models.
 
-GitHub (MIT license): https://github.com/aykutturksoy5-maker/domino
+GitHub (MIT license): https://github.com/h4n0m4n/domino
 ```
 
 ### 2c. r/Python
@@ -145,7 +145,7 @@ print(f"Monthly impact: TRY {summary.total_monthly_impact:+,.0f}")
 Install: `pip install -e .`
 12 tests covering edge cases (empty profiles, negative values, extreme inputs).
 
-GitHub: https://github.com/aykutturksoy5-maker/domino
+GitHub: https://github.com/h4n0m4n/domino
 ```
 
 ### 2d. r/geopolitics
@@ -178,7 +178,7 @@ I'd especially value feedback on:
 - Regional scenarios (EU, South Asia, Africa?)
 - Compound effects between crises
 
-GitHub: https://github.com/aykutturksoy5-maker/domino
+GitHub: https://github.com/h4n0m4n/domino
 ```
 
 ### 2e. r/webdev
@@ -211,7 +211,7 @@ The interesting challenge was rendering 100+ connected nodes with smooth animati
 
 All scenario data is embedded (no backend needed for visualization), making it perfect for static deployment.
 
-GitHub: https://github.com/aykutturksoy5-maker/domino
+GitHub: https://github.com/h4n0m4n/domino
 ```
 
 ---
@@ -285,7 +285,7 @@ It's 100% open source (MIT). You can:
 
 Built with Python + FastAPI + Next.js
 
-GitHub: github.com/aykutturksoy5-maker/domino
+GitHub: github.com/h4n0m4n/domino
 
 Star it if this is useful. ⭐
 ```
@@ -362,7 +362,7 @@ Every node carries:
 ## Try it
 
 ```bash
-git clone https://github.com/aykutturksoy5-maker/domino.git
+git clone https://github.com/h4n0m4n/domino.git
 cd domino
 pip install -e .
 domino simulate scenarios/hormuz_strait.json \
@@ -376,7 +376,7 @@ domino simulate scenarios/hormuz_strait.json \
 - Community scenario marketplace
 - MCP server for AI agent integration
 
-**Star it if this resonates with you**: [github.com/aykutturksoy5-maker/domino](https://github.com/aykutturksoy5-maker/domino)
+**Star it if this resonates with you**: [github.com/h4n0m4n/domino](https://github.com/h4n0m4n/domino)
 
 ---
 
@@ -431,7 +431,7 @@ Would love to connect with:
 🔹 Developers who want to contribute
 🔹 Anyone who wants to build a scenario for their country
 
-GitHub: https://github.com/aykutturksoy5-maker/domino
+GitHub: https://github.com/h4n0m4n/domino
 
 #opensource #fintech #economics #geopolitics #python #nextjs
 ```

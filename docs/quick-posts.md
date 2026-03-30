@@ -21,7 +21,7 @@ Domino — open-source cascading crisis impact simulator. Models how wars, pande
 ```
 **URL (Link post):**
 ```
-https://github.com/aykutturksoy5-maker/domino
+https://github.com/h4n0m4n/domino
 ```
 
 ---
@@ -34,7 +34,7 @@ Domino — Cascading crisis simulation engine. See how the Hormuz war hits your 
 ```
 **URL (Link post):**
 ```
-https://github.com/aykutturksoy5-maker/domino
+https://github.com/h4n0m4n/domino
 ```
 
 ---
@@ -60,5 +60,5 @@ Domino: Open-source engine that models how global crises cascade into personal b
 ```
 **URL (Link post):**
 ```
-https://github.com/aykutturksoy5-maker/domino
+https://github.com/h4n0m4n/domino
 ```

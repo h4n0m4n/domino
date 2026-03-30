@@ -12,7 +12,7 @@
 
 An open-source cascading impact simulation engine that models how wars, energy shocks, and economic crises ripple through the world economy — and land on **your** doorstep.
 
-**[Quick Start](#quick-start)** · **[Scenarios](#built-in-scenarios)** · **[Build Your Own](#build-your-own-scenario)** · **[Contributing](docs/contributing.md)** · **[Discussions](https://github.com/aykutturksoy5-maker/domino/discussions)**
+**[Live Demo](https://domino-crisis.vercel.app)** · **[Quick Start](#quick-start)** · **[Scenarios](#built-in-scenarios)** · **[Build Your Own](#build-your-own-scenario)** · **[Contributing](docs/contributing.md)** · **[Discussions](https://github.com/aykutturksoy5-maker/domino/discussions)**
 
 </div>
 
@@ -63,6 +63,10 @@ domino simulate scenarios/hormuz_strait.json \
 ```
 
 ### Web Dashboard
+
+> **Try it now:** [domino-crisis.vercel.app](https://domino-crisis.vercel.app)
+
+Or run locally:
 
 ```bash
 cd web && npm install && npm run dev

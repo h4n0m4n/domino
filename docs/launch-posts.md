@@ -42,6 +42,7 @@ What I'd love feedback on:
 2. What scenarios would you add for your region?
 3. Should I add compound mode (stack multiple crises)?
 
+Live demo: https://domino-crisis.vercel.app
 GitHub: https://github.com/aykutturksoy5-maker/domino
 ```
 

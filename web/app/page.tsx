@@ -22,6 +22,14 @@ interface Profile { monthly_fuel_spend: number; monthly_energy_bill: number; mon
 const BMAP: Record<string, keyof Profile> = { energy: "monthly_energy_bill", transport: "monthly_fuel_spend", food: "monthly_groceries", housing: "monthly_rent" };
 const RISK_SECTORS = new Set(["employment", "finance", "technology", "health", "security"]);
 
+type CurrencyKey = "USD" | "EUR" | "GBP" | "TRY";
+const CURRENCIES: Record<CurrencyKey, { symbol: string; locale: string; defaults: Profile }> = {
+  USD: { symbol: "$", locale: "en-US", defaults: { monthly_fuel_spend: 200, monthly_energy_bill: 150, monthly_groceries: 600, monthly_rent: 1500, monthly_income: 4000, savings: 15000 } },
+  EUR: { symbol: "€", locale: "de-DE", defaults: { monthly_fuel_spend: 180, monthly_energy_bill: 130, monthly_groceries: 500, monthly_rent: 1200, monthly_income: 3500, savings: 12000 } },
+  GBP: { symbol: "£", locale: "en-GB", defaults: { monthly_fuel_spend: 160, monthly_energy_bill: 120, monthly_groceries: 450, monthly_rent: 1100, monthly_income: 3200, savings: 11000 } },
+  TRY: { symbol: "₺", locale: "tr-TR", defaults: { monthly_fuel_spend: 3000, monthly_energy_bill: 2500, monthly_groceries: 8000, monthly_rent: 15000, monthly_income: 45000, savings: 150000 } },
+};
+
 interface LN { node: ScenarioNode; x: number; y: number; depth: number }
 interface LE { fromId: string; toId: string; color: string }
 
@@ -98,7 +106,9 @@ function drawEdges(canvas: HTMLCanvasElement, les: LE[], posMap: Map<string, [nu
 
 export default function Home() {
   const [active, setActive] = useState("hormuz_strait");
-  const [profile, setProfile] = useState<Profile>({ monthly_fuel_spend: 3000, monthly_energy_bill: 2500, monthly_groceries: 8000, monthly_rent: 15000, monthly_income: 45000, savings: 150000 });
+  const [ccy, setCcy] = useState<CurrencyKey>("USD");
+  const cur = CURRENCIES[ccy];
+  const [profile, setProfile] = useState<Profile>({ ...CURRENCIES.USD.defaults });
   const [simDone, setSimDone] = useState(false);
   const [impMap, setImpMap] = useState<Record<string, number>>({});
   const [totM, setTotM] = useState(0);
@@ -131,8 +141,10 @@ export default function Home() {
   }
   function handleProfileChange(key: keyof Profile, val: string) { setProfile(prev => ({ ...prev, [key]: parseFloat(val) || 0 })); setSimDone(false); }
 
+  function handleCurrency(c: CurrencyKey) { setCcy(c); setProfile({ ...CURRENCIES[c].defaults }); setSimDone(false); }
+
   const savRun = totM > 0 && profile.savings > 0 ? Math.round((profile.savings / totM) * 10) / 10 : null;
-  const fmt = (n: number) => (n >= 0 ? "+" : "") + n.toLocaleString("tr-TR");
+  const fmt = (n: number) => (n >= 0 ? "+" : "") + n.toLocaleString(cur.locale);
   const selNode = sel ? (data.chain.nodes as ScenarioNode[]).find(n => n.id === sel) : null;
   const NW = 240, NH = 88;
 
@@ -148,6 +160,11 @@ export default function Home() {
             const s = scenarios[k as keyof typeof scenarios]; const c = ACCENT[k] || "#888"; const on = active === k;
             return <button key={k} type="button" onClick={() => handleScenario(k)} style={{ padding: "4px 8px", borderRadius: 5, fontSize: 9, fontWeight: on ? 700 : 500, background: on ? c + "22" : "transparent", color: on ? c : "#555", border: on ? "1px solid " + c + "55" : "1px solid transparent", cursor: "pointer", whiteSpace: "nowrap", outline: "none" }}>{s.scenario.name.split(" ").slice(0, 2).join(" ")}</button>;
           })}
+        </div>
+        <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+          {(Object.keys(CURRENCIES) as CurrencyKey[]).map(c => (
+            <button key={c} type="button" onClick={() => handleCurrency(c)} style={{ padding: "3px 6px", borderRadius: 4, fontSize: 9, fontWeight: ccy === c ? 700 : 500, background: ccy === c ? "#58a6ff22" : "transparent", color: ccy === c ? "#58a6ff" : "#555", border: ccy === c ? "1px solid #58a6ff55" : "1px solid transparent", cursor: "pointer", outline: "none" }}>{CURRENCIES[c].symbol}{c}</button>
+          ))}
         </div>
         <button type="button" onClick={() => setShowPanel(p => !p)} style={{ fontSize: 10, color: "#888", padding: "4px 8px", borderRadius: 5, border: "1px solid #21262d", background: "transparent", cursor: "pointer", flexShrink: 0, outline: "none" }}>{showPanel ? "Hide" : "Show"}</button>
       </div>
@@ -214,7 +231,7 @@ export default function Home() {
                   {isP && cost !== null && cost !== 0 && (
                     <div style={{ margin: "2px 7px 8px", padding: "7px 10px", borderRadius: 7, background: cost > 0 ? "linear-gradient(135deg, rgba(255,68,68,0.12), rgba(255,30,30,0.05))" : "linear-gradient(135deg, rgba(63,185,80,0.12), rgba(63,185,80,0.05))", border: cost > 0 ? "1px solid rgba(255,68,68,0.25)" : "1px solid rgba(63,185,80,0.25)" }}>
                       <div style={{ fontSize: 7, fontWeight: 900, color: cost > 0 ? "#ff4444" : "#3fb950", letterSpacing: 1.5, marginBottom: 2 }}>YOUR MONTHLY COST</div>
-                      <span style={{ fontSize: 18, fontWeight: 900, color: cost > 0 ? "#ff4444" : "#3fb950" }}>TRY {fmt(cost)}</span>
+                      <span style={{ fontSize: 18, fontWeight: 900, color: cost > 0 ? "#ff4444" : "#3fb950" }}>{cur.symbol}{fmt(cost)}</span>
                       <span style={{ fontSize: 9, color: cost > 0 ? "#ff444466" : "#3fb95066" }}>/mo</span>
                     </div>
                   )}
@@ -236,8 +253,8 @@ export default function Home() {
           {simDone && (
             <div style={{ position: "fixed", bottom: 24, left: 24, zIndex: 30, borderRadius: 14, border: "1px solid #ff444433", padding: "18px 22px", background: "linear-gradient(145deg, rgba(13,17,23,0.97), rgba(6,8,13,0.98))", backdropFilter: "blur(12px)", boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 20px rgba(255,68,68,0.08)" }}>
               <div style={{ fontSize: 8, color: "#888", fontWeight: 900, letterSpacing: 2 }}>TOTAL PERSONAL IMPACT</div>
-              <div style={{ fontSize: 30, fontWeight: 900, color: "#ff4444", lineHeight: 1.1, marginTop: 4 }}>TRY {fmt(totM)}<span style={{ fontSize: 11, fontWeight: 400, color: "#ff444444" }}>/mo</span></div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#f0a030", marginTop: 3 }}>TRY {fmt(totA)}<span style={{ fontSize: 10, color: "#f0a03044" }}>/yr</span></div>
+              <div style={{ fontSize: 30, fontWeight: 900, color: "#ff4444", lineHeight: 1.1, marginTop: 4 }}>{cur.symbol}{fmt(totM)}<span style={{ fontSize: 11, fontWeight: 400, color: "#ff444444" }}>/mo</span></div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#f0a030", marginTop: 3 }}>{cur.symbol}{fmt(totA)}<span style={{ fontSize: 10, color: "#f0a03044" }}>/yr</span></div>
               {savRun !== null && (
                 <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #21262d" }}>
                   <div style={{ fontSize: 7, color: "#888", fontWeight: 800, letterSpacing: 1.5, marginBottom: 3 }}>SAVINGS RUNWAY</div>
@@ -258,9 +275,9 @@ export default function Home() {
         {showPanel && (
           <div style={{ width: 290, borderLeft: "1px solid #21262d", background: "#0d1117", padding: 14, overflowY: "auto", flexShrink: 0, zIndex: 10 }}>
             <div style={{ fontSize: 9, fontWeight: 800, color: "#888", letterSpacing: 1.5, marginBottom: 10 }}>YOUR PROFILE</div>
-            {([["Monthly Fuel (TRY)", "monthly_fuel_spend"], ["Monthly Energy (TRY)", "monthly_energy_bill"], ["Monthly Groceries (TRY)", "monthly_groceries"], ["Monthly Rent (TRY)", "monthly_rent"], ["Monthly Income (TRY)", "monthly_income"], ["Total Savings (TRY)", "savings"]] as [string, keyof Profile][]).map(([lbl, key]) => (
+            {([["Monthly Fuel", "monthly_fuel_spend"], ["Monthly Energy", "monthly_energy_bill"], ["Monthly Groceries", "monthly_groceries"], ["Monthly Rent", "monthly_rent"], ["Monthly Income", "monthly_income"], ["Total Savings", "savings"]] as [string, keyof Profile][]).map(([lbl, key]) => (
               <div key={key} style={{ marginBottom: 7 }}>
-                <div style={{ fontSize: 9, color: "#888", marginBottom: 2 }}>{lbl}</div>
+                <div style={{ fontSize: 9, color: "#888", marginBottom: 2 }}>{lbl} ({cur.symbol})</div>
                 <input type="number" value={profile[key] || ""} onChange={e => handleProfileChange(key, e.target.value)} style={{ width: "100%", background: "#161b22", border: "1px solid #21262d", borderRadius: 6, padding: "7px 10px", color: "#e6edf3", fontSize: 12, outline: "none", boxSizing: "border-box" }} />
               </div>
             ))}
@@ -297,7 +314,7 @@ export default function Home() {
                         <div style={{ width: 2.5, height: 12, borderRadius: 2, background: sc(nd.sector).color, flexShrink: 0 }} />
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nd.event}</span>
                       </div>
-                      <span style={{ fontWeight: 800, color: cost > 0 ? "#ff4444" : "#3fb950", marginLeft: 6, flexShrink: 0 }}>TRY {fmt(cost)}</span>
+                      <span style={{ fontWeight: 800, color: cost > 0 ? "#ff4444" : "#3fb950", marginLeft: 6, flexShrink: 0 }}>{cur.symbol}{fmt(cost)}</span>
                     </div>
                   );
                 })}

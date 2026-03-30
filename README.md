@@ -101,6 +101,11 @@ Savings:  50 months → 41.7 months
 | **Dollar Reserve Collapse** | USD drops below 50% global reserves | 12 | Currency, Finance, Food |
 | **AI Employment Wave** | Agentic AI automates 40% of knowledge work | 13 | Employment, Technology, Health |
 | **Pandemic v2 (H5N1)** | Novel avian flu achieves human transmission | 11 | Health, Supply Chain, Finance |
+| **Taiwan Semiconductor Crisis** | Strait blockade cuts 60% of global foundry capacity | 11 | Technology, Transport, Employment |
+| **Climate Crop Failure** | Synchronized droughts & floods across breadbaskets | 10 | Food, Agriculture, Security |
+| **Marmara Earthquake** | M7.5+ quake hits Istanbul metropolitan area | 10 | Housing, Insurance, Currency |
+| **Crypto Crash Contagion** | 80%+ drawdown with stablecoin depegs | 11 | Finance, Employment, Credit |
+| **Energy Transition** | Peak oil demand triggers structural price decline | 11 | Energy, Employment, Currency |
 
 ## How It Works
 
@@ -205,7 +210,7 @@ tests/              # Pytest test suite
 - [x] Core cascade engine with DAG modeling
 - [x] CLI with rich terminal output
 - [x] Web dashboard with interactive visualization
-- [x] 4 built-in scenarios (Hormuz, Dollar, AI, Pandemic)
+- [x] 9 built-in scenarios (Hormuz, Dollar, AI, Pandemic, Taiwan, Climate, Earthquake, Crypto, Energy)
 - [x] Real-time data providers
 - [x] AI-powered cascade generation
 - [x] Personal impact calculator

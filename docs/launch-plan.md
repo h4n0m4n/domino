@@ -39,7 +39,7 @@ within 90 days, fuel +35% within 7 days.
 Built with Python, FastAPI, Next.js. Free data from NewsMCP, GDELT, World Bank. 
 AI-powered cascade generation via Ollama (local, free).
 
-https://github.com/YOUR_USERNAME/domino
+https://github.com/aykutturksoy5-maker/domino
 ```
 
 ## Day 1 Launch: Reddit

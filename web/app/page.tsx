@@ -7,8 +7,8 @@ const SECTOR: Record<string, { color: string; label: string }> = {
   security: { color: "#ff4444", label: "SEC" }, energy: { color: "#f0a030", label: "NRG" },
   food: { color: "#3fb950", label: "FOOD" }, transport: { color: "#58a6ff", label: "TRNS" },
   employment: { color: "#bc8cff", label: "JOBS" }, currency: { color: "#e3b341", label: "FX" },
-  finance: { color: "#58a6ff", label: "FIN" }, health: { color: "#f778ba", label: "HLTH" },
-  technology: { color: "#bc8cff", label: "TECH" }, housing: { color: "#da7756", label: "HOUS" },
+  finance: { color: "#39d2c0", label: "FIN" }, health: { color: "#f778ba", label: "HLTH" },
+  technology: { color: "#a78bfa", label: "TECH" }, housing: { color: "#da7756", label: "HOUS" },
 };
 const sc = (s: string) => SECTOR[s] || { color: "#8b949e", label: "?" };
 const ACCENT: Record<string, string> = {
@@ -20,7 +20,7 @@ const KEYS = Object.keys(scenarios);
 
 interface Profile { monthly_fuel_spend: number; monthly_energy_bill: number; monthly_groceries: number; monthly_rent: number; monthly_income: number; savings: number; }
 const BMAP: Record<string, keyof Profile> = { energy: "monthly_energy_bill", transport: "monthly_fuel_spend", food: "monthly_groceries", housing: "monthly_rent" };
-const RISK_SECTORS = new Set(["employment", "finance", "technology", "health", "security"]);
+const RISK_SECTORS = new Set(["employment", "finance", "technology", "health", "security", "currency"]);
 
 type CurrencyKey = "USD" | "EUR" | "GBP" | "TRY";
 const CURRENCIES: Record<CurrencyKey, { symbol: string; locale: string; defaults: Profile }> = {
@@ -90,7 +90,7 @@ function drawEdges(canvas: HTMLCanvasElement, les: LE[], posMap: Map<string, [nu
     ctx.strokeStyle = e.color + "66";
     ctx.lineWidth = 1.5;
     ctx.setLineDash([6, 4]);
-    ctx.lineDashOffset = -t * 14;
+    ctx.lineDashOffset = -(t * 14) % 10;
     ctx.stroke();
     ctx.setLineDash([]);
     const ax = to[0], ay = to[1] - nodeH / 2;
@@ -139,12 +139,13 @@ export default function Home() {
     r.imp.forEach((v, k) => { obj[k] = v; });
     setImpMap(obj); setTotM(r.tot); setTotA(r.annual); setSimDone(true);
   }
-  function handleProfileChange(key: keyof Profile, val: string) { setProfile(prev => ({ ...prev, [key]: parseFloat(val) || 0 })); setSimDone(false); }
+  function handleProfileChange(key: keyof Profile, val: string) { const n = parseFloat(val); setProfile(prev => ({ ...prev, [key]: isNaN(n) ? 0 : Math.max(0, n) })); clearStaleResults(); }
 
-  function handleCurrency(c: CurrencyKey) { setCcy(c); setProfile({ ...CURRENCIES[c].defaults }); setSimDone(false); }
+  function handleCurrency(c: CurrencyKey) { setCcy(c); setProfile({ ...CURRENCIES[c].defaults }); setSimDone(false); setImpMap({}); setTotM(0); setTotA(0); }
+  function clearStaleResults() { setSimDone(false); setImpMap({}); setTotM(0); setTotA(0); }
 
   const savRun = totM > 0 && profile.savings > 0 ? Math.round((profile.savings / totM) * 10) / 10 : null;
-  const fmt = (n: number) => (n >= 0 ? "+" : "") + n.toLocaleString(cur.locale);
+  const fmt = (n: number) => (n >= 0 ? "+" : "-") + cur.symbol + Math.abs(n).toLocaleString(cur.locale);
   const selNode = sel ? (data.chain.nodes as ScenarioNode[]).find(n => n.id === sel) : null;
   const NW = 240, NH = 88;
 
@@ -216,13 +217,13 @@ export default function Home() {
                   <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "7px 9px 2px" }}>
                     <span style={{ fontSize: 7, fontWeight: 900, letterSpacing: 1, padding: "1px 4px", borderRadius: 3, background: color + "22", color, border: "1px solid " + color + "33" }}>{label}</span>
                     {isRoot && <span style={{ fontSize: 7, fontWeight: 900, color: "#ff4444" }}>TRIGGER</span>}
-                    <span style={{ marginLeft: "auto", fontSize: 8, fontWeight: 800, color }}>{n.direction === "up" ? "+" : n.direction === "down" ? "-" : ""}{n.magnitude}{n.unit === "%" ? "%" : ""}</span>
+                    <span style={{ marginLeft: "auto", fontSize: 8, fontWeight: 800, color }}>{n.direction === "up" ? "+" : n.direction === "down" ? "-" : ""}{n.magnitude}{n.unit.includes("%") ? "%" : ""}</span>
                     {n.delay_days > 0 && <span style={{ fontSize: 7, color: "#484f58" }}>+{n.delay_days}d</span>}
                   </div>
                   <div style={{ padding: "2px 9px 4px", fontSize: isRoot ? 12.5 : isP ? 10.5 : 9.5, fontWeight: isRoot ? 700 : 600, color: isP ? "#ff4444" : "#e6edf3", lineHeight: 1.35, letterSpacing: isRoot ? -0.2 : 0 }}>{n.event}</div>
                   <div style={{ padding: "0 9px 6px", display: "flex", alignItems: "center", gap: 6 }}>
                     <div style={{ flex: 1, height: 3, borderRadius: 2, background: color + "18", overflow: "hidden" }}>
-                      <div style={{ height: "100%", borderRadius: 2, width: Math.min(100, Math.abs(n.magnitude) * 1.5) + "%", background: `linear-gradient(90deg, ${color}88, ${color})` }} />
+                      <div style={{ height: "100%", borderRadius: 2, width: Math.min(100, Math.log10(Math.max(1, Math.abs(n.magnitude))) * 33) + "%", background: `linear-gradient(90deg, ${color}88, ${color})` }} />
                     </div>
                     <div style={{ display: "flex", gap: 1.5, flexShrink: 0 }}>
                       {[1,2,3,4,5].map(i => <div key={i} style={{ width: 2, height: 8, borderRadius: 1, background: i <= Math.round(n.confidence * 5) ? color : color + "18" }} />)}
@@ -231,7 +232,7 @@ export default function Home() {
                   {isP && cost !== null && cost !== 0 && (
                     <div style={{ margin: "2px 7px 8px", padding: "7px 10px", borderRadius: 7, background: cost > 0 ? "linear-gradient(135deg, rgba(255,68,68,0.12), rgba(255,30,30,0.05))" : "linear-gradient(135deg, rgba(63,185,80,0.12), rgba(63,185,80,0.05))", border: cost > 0 ? "1px solid rgba(255,68,68,0.25)" : "1px solid rgba(63,185,80,0.25)" }}>
                       <div style={{ fontSize: 7, fontWeight: 900, color: cost > 0 ? "#ff4444" : "#3fb950", letterSpacing: 1.5, marginBottom: 2 }}>YOUR MONTHLY COST</div>
-                      <span style={{ fontSize: 18, fontWeight: 900, color: cost > 0 ? "#ff4444" : "#3fb950" }}>{cur.symbol}{fmt(cost)}</span>
+                      <span style={{ fontSize: 18, fontWeight: 900, color: cost > 0 ? "#ff4444" : "#3fb950" }}>{fmt(cost)}</span>
                       <span style={{ fontSize: 9, color: cost > 0 ? "#ff444466" : "#3fb95066" }}>/mo</span>
                     </div>
                   )}
@@ -253,8 +254,8 @@ export default function Home() {
           {simDone && (
             <div style={{ position: "fixed", bottom: 24, left: 24, zIndex: 30, borderRadius: 14, border: "1px solid #ff444433", padding: "18px 22px", background: "linear-gradient(145deg, rgba(13,17,23,0.97), rgba(6,8,13,0.98))", backdropFilter: "blur(12px)", boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 20px rgba(255,68,68,0.08)" }}>
               <div style={{ fontSize: 8, color: "#888", fontWeight: 900, letterSpacing: 2 }}>TOTAL PERSONAL IMPACT</div>
-              <div style={{ fontSize: 30, fontWeight: 900, color: "#ff4444", lineHeight: 1.1, marginTop: 4 }}>{cur.symbol}{fmt(totM)}<span style={{ fontSize: 11, fontWeight: 400, color: "#ff444444" }}>/mo</span></div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#f0a030", marginTop: 3 }}>{cur.symbol}{fmt(totA)}<span style={{ fontSize: 10, color: "#f0a03044" }}>/yr</span></div>
+              <div style={{ fontSize: 30, fontWeight: 900, color: totM > 0 ? "#ff4444" : "#3fb950", lineHeight: 1.1, marginTop: 4 }}>{fmt(totM)}<span style={{ fontSize: 11, fontWeight: 400, color: totM > 0 ? "#ff444444" : "#3fb95044" }}>/mo</span></div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: totA > 0 ? "#f0a030" : "#3fb950", marginTop: 3 }}>{fmt(totA)}<span style={{ fontSize: 10, color: totA > 0 ? "#f0a03044" : "#3fb95044" }}>/yr</span></div>
               {savRun !== null && (
                 <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #21262d" }}>
                   <div style={{ fontSize: 7, color: "#888", fontWeight: 800, letterSpacing: 1.5, marginBottom: 3 }}>SAVINGS RUNWAY</div>
@@ -278,7 +279,7 @@ export default function Home() {
             {([["Monthly Fuel", "monthly_fuel_spend"], ["Monthly Energy", "monthly_energy_bill"], ["Monthly Groceries", "monthly_groceries"], ["Monthly Rent", "monthly_rent"], ["Monthly Income", "monthly_income"], ["Total Savings", "savings"]] as [string, keyof Profile][]).map(([lbl, key]) => (
               <div key={key} style={{ marginBottom: 7 }}>
                 <div style={{ fontSize: 9, color: "#888", marginBottom: 2 }}>{lbl} ({cur.symbol})</div>
-                <input type="number" value={profile[key] || ""} onChange={e => handleProfileChange(key, e.target.value)} style={{ width: "100%", background: "#161b22", border: "1px solid #21262d", borderRadius: 6, padding: "7px 10px", color: "#e6edf3", fontSize: 12, outline: "none", boxSizing: "border-box" }} />
+                <input type="number" min={0} value={profile[key] ?? ""} onChange={e => handleProfileChange(key, e.target.value)} style={{ width: "100%", background: "#161b22", border: "1px solid #21262d", borderRadius: 6, padding: "7px 10px", color: "#e6edf3", fontSize: 12, outline: "none", boxSizing: "border-box" }} />
               </div>
             ))}
             <button type="button" onClick={handleSimulate} style={{ width: "100%", marginTop: 8, padding: "10px 0", borderRadius: 7, fontWeight: 800, fontSize: 11, background: accent, color: "#fff", border: "none", cursor: "pointer", outline: "none" }}>SIMULATE CASCADE</button>
@@ -314,7 +315,7 @@ export default function Home() {
                         <div style={{ width: 2.5, height: 12, borderRadius: 2, background: sc(nd.sector).color, flexShrink: 0 }} />
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nd.event}</span>
                       </div>
-                      <span style={{ fontWeight: 800, color: cost > 0 ? "#ff4444" : "#3fb950", marginLeft: 6, flexShrink: 0 }}>{cur.symbol}{fmt(cost)}</span>
+                      <span style={{ fontWeight: 800, color: cost > 0 ? "#ff4444" : "#3fb950", marginLeft: 6, flexShrink: 0 }}>{fmt(cost)}</span>
                     </div>
                   );
                 })}

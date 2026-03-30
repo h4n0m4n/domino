@@ -6,7 +6,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-12%2F12%20passing-brightgreen.svg)](#)
+[![CI](https://github.com/aykutturksoy5-maker/domino/actions/workflows/ci.yml/badge.svg)](https://github.com/aykutturksoy5-maker/domino/actions)
 [![Scenarios](https://img.shields.io/badge/scenarios-9%20crises-red.svg)](#built-in-scenarios)
 [![Next.js](https://img.shields.io/badge/frontend-Next.js-black.svg)](https://nextjs.org/)
 

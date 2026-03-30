@@ -19,7 +19,9 @@ Example:
 
 from __future__ import annotations
 
-from cascade.core.node import CascadeNode
+from collections import deque
+
+from cascade.core.node import CascadeNode, Sector
 
 
 class CascadeChain:
@@ -70,10 +72,10 @@ class CascadeChain:
         """Get the full downstream cascade from a given node (BFS)."""
         result: list[CascadeNode] = []
         visited: set[str] = set()
-        queue = [node_id]
+        queue: deque[str] = deque([node_id])
 
         while queue:
-            current_id = queue.pop(0)
+            current_id = queue.popleft()
             if current_id in visited:
                 continue
             visited.add(current_id)
@@ -91,9 +93,10 @@ class CascadeChain:
             return []
         return self.get_chain_from(self._root_id)
 
-    def get_by_sector(self, sector: str) -> list[CascadeNode]:
+    def get_by_sector(self, sector: str | Sector) -> list[CascadeNode]:
         """Filter nodes by sector."""
-        return [n for n in self._nodes.values() if n.sector == sector]
+        target = Sector(sector) if isinstance(sector, str) else sector
+        return [n for n in self._nodes.values() if n.sector == target]
 
     def total_depth(self, node_id: str | None = None) -> int:
         """Maximum depth of the cascade tree from a node."""

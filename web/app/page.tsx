@@ -192,7 +192,7 @@ export default function Home() {
               const { color, label } = sc(n.sector);
               const isRoot = l.depth === 0;
               const isP = n.region === "personal";
-              const cost = impMap[n.id] || null;
+              const cost = impMap[n.id] ?? null;
               const isSel = sel === n.id;
               const w = isRoot ? 290 : isP ? 260 : NW;
 

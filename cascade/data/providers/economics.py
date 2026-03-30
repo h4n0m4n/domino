@@ -48,13 +48,14 @@ class WorldBankProvider(BaseProvider):
                     val = entry.get("value")
                     if val is None:
                         continue
+                    year_str = entry.get("date", str(datetime.now(timezone.utc).year))
                     points.append(DataPoint(
                         source="world_bank",
                         category=category,
                         key=f"{name} ({entry.get('country', {}).get('value', country)})",
                         value=float(val),
                         unit=unit,
-                        timestamp=datetime(int(entry.get("date", "2024")), 1, 1, tzinfo=timezone.utc),
+                        timestamp=datetime(int(year_str), 1, 1, tzinfo=timezone.utc),
                         metadata={
                             "country_code": country,
                             "indicator_id": indicator_id,
